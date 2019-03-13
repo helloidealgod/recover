@@ -93,9 +93,11 @@ DWORD WriteDisk(unsigned char* out, DWORD start, DWORD size) {
 //		printf("controller ret = %d\n", ret);
 //		return ret;
 //	}
-	ret = DeviceIoControl(handle, FSCTL_LOCK_VOLUME, NULL, 0, NULL, 0,&dwBytesReturned, NULL);
+	ret = DeviceIoControl(handle, FSCTL_LOCK_VOLUME, NULL, 0, NULL, 0,
+			&dwBytesReturned, NULL);
 	if (!ret) {
-		cout << "execute FSCTL_LOCK_VOLUME error ,error code:" << GetLastError()<< endl;
+		cout << "execute FSCTL_LOCK_VOLUME error ,error code:" << GetLastError()
+				<< endl;
 	} else {
 		cout << "execute FSCTL_LOCK_VOLUME succeed" << endl;
 	}
@@ -105,7 +107,8 @@ DWORD WriteDisk(unsigned char* out, DWORD start, DWORD size) {
 	} else {
 		cout << "write sector succeed" << endl;
 	}
-	DeviceIoControl(handle,FSCTL_UNLOCK_VOLUME,NULL,0,NULL,0,&dwBytesReturned,NULL);
+	DeviceIoControl(handle, FSCTL_UNLOCK_VOLUME, NULL, 0, NULL, 0,
+			&dwBytesReturned, NULL);
 	delete[] buffer;
 	//注意这里需要自己释放内存
 	CloseHandle(handle);
@@ -122,19 +125,80 @@ int main(int argc, _TCHAR* argv[]) {
 	in[511] = 0xAA;
 	in[1022] = 0x55;
 	in[1023] = 0xAA;
-	WriteDisk(in, 0, 512*2);
-//	ShellExecute(0, "runas", "Recover.exe", NULL, NULL, SW_SHOWNORMAL);
-	DWORD len = ReadDisk(a, 0, 512 * 2);
-	if (len) {
-		cout << len << endl;
-		for (int i = 0; i < 512; i++) {
-			printf("%02X ", a[i]);
-		}
-		printf("\n");
-		for (int i = 512; i < len; i++) {
-			printf("%02X ", a[i]);
-		}
+	/**
+	 * 返回值：GetLogicalDrives函数返回一个DWORD类型的值，第一位表示所对应的驱动器是否存在。一般情况下DWORD的数据长度是32位，在这个DWORD中，每一位对应了一个逻辑驱动器是否存在。第二位如果是“1”则表示驱动器“B:”存在，第四位如果是“1”则表示驱动器“D:”存在，以此类推
+	 */
+	DWORD logic = GetLogicalDrives();
+	char m_strDrives[200];
+	DWORD r = GetLogicalDriveStrings(200, m_strDrives);
+	cout << r << " " << endl;
+//	for(int i=0;i<r;i++)
+//		printf("%c",m_strDrives[i]);
+	UINT DType = GetDriveType("G:\\");
+//	cout << DType << endl;
+//	DRIVE_UNKNOWN     = 0; {未知}
+//	DRIVE_NO_ROOT_DIR = 1; {可移动磁盘}
+//	DRIVE_REMOVABLE   = 2; {软盘}
+//	DRIVE_FIXED       = 3; {本地硬盘}
+//	DRIVE_REMOTE      = 4; {网络磁盘}
+//	DRIVE_CDROM       = 5; {CD-ROM}
+//	DRIVE_RAMDISK     = 6; {RAM 磁盘}
+	if (DType == DRIVE_FIXED) {
+		cout << "硬盘" << endl;
+	} else if (DType == DRIVE_CDROM) {
+		cout << "光驱" << endl;
+	} else if (DType == DRIVE_REMOVABLE) {
+		cout << "可移动硬盘" << endl;
+	} else if (DType == DRIVE_REMOTE) {
+		cout << "网络磁盘" << endl;
+	} else if (DType == DRIVE_RAMDISK) {
+		cout << "虚拟RAM磁盘" << endl;
+	} else if (DType == DRIVE_UNKNOWN) {
+		cout << "未知设备" << endl;
 	}
+	//得出磁盘的可用空间
+	DWORD dwTotalClusters; //总的簇
+	DWORD dwFreeClusters; //可用的簇
+	DWORD dwSectPerClust; //每个簇有多少个扇区
+	DWORD dwBytesPerSect; //每个扇区有多少个字节
+	BOOL bResult = GetDiskFreeSpace(TEXT("C:"), &dwSectPerClust,
+			&dwBytesPerSect, &dwFreeClusters, &dwTotalClusters);
+	if (bResult) {
+		cout << "使用GetDiskFreeSpace函数获取磁盘空间信息" << endl;
+		cout << "总簇数量: " << dwTotalClusters << endl;
+		cout << "可用的簇: " << dwFreeClusters << endl;
+		cout << "每个簇有多少个扇区: " << dwSectPerClust << endl;
+		cout << "每个扇区有多少个字节: " << dwBytesPerSect << endl;
+		cout << "磁盘总容量: "
+				<< dwTotalClusters * (DWORD64) dwSectPerClust
+						* (DWORD64) dwBytesPerSect << endl;
+		cout << "磁盘空闲容量: "
+				<< dwFreeClusters * (DWORD64) dwSectPerClust
+						* (DWORD64) dwBytesPerSect << endl;
+	}
+	cout << "\n\n" << endl;
+	DWORD64 qwFreeBytes, qwFreeBytesToCaller, qwTotalBytes;
+	bResult = GetDiskFreeSpaceEx(TEXT("C:"),
+			(PULARGE_INTEGER) &qwFreeBytesToCaller,
+			(PULARGE_INTEGER) &qwTotalBytes, (PULARGE_INTEGER) &qwFreeBytes);
+	if (bResult) {
+		cout << "使用GetDiskFreeSpaceEx函数获取磁盘空间信息" << endl;
+		cout << "磁盘总容量: " << qwTotalBytes << endl;
+		cout << "可用的磁盘空闲容量: " << qwFreeBytes << endl;
+		cout << "磁盘空闲容量: " << qwFreeBytesToCaller << endl;
+	}
+//	WriteDisk(in, 0, 512*2);
+//	DWORD len = ReadDisk(a, 0, 512 * 2);
+//	if (len) {
+//		cout << len << endl;
+//		for (int i = 0; i < 512; i++) {
+//			printf("%02X ", a[i]);
+//		}
+//		printf("\n");
+//		for (int i = 512; i < len; i++) {
+//			printf("%02X ", a[i]);
+//		}
+//	}
 	getchar();
 	return 0;
 }
